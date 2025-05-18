@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import UserDetailsForm, { UserFormData } from "@/components/UserDetailsForm";
 import MeasurementDisplay from "@/components/MeasurementDisplay";
@@ -7,6 +8,7 @@ import { saveUserMeasurement, getUserMeasurements, UserMeasurement } from "@/ser
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/integrations/supabase/client";
 import { generateQRCode } from "@/utils/qrCodeUtils";
+import { toast } from "@/components/ui/use-toast";
 
 enum AppState {
   USER_DETAILS,
@@ -19,13 +21,12 @@ const Index = () => {
   const [appState, setAppState] = useState<AppState>(AppState.HISTORY);
   const [userData, setUserData] = useState<UserFormData | null>(null);
   const [measurements, setMeasurements] = useState<UserMeasurement[]>([]);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load existing measurements on component mount
     const storedMeasurements = getUserMeasurements();
     setMeasurements(storedMeasurements);
-    
-    // If no measurements exist, start with user details form
+
     if (storedMeasurements.length === 0) {
       setAppState(AppState.USER_DETAILS);
     }
@@ -49,7 +50,6 @@ const Index = () => {
         measurementDate: new Date().toISOString()
       };
 
-      // Create QR code payload
       const qrPayload = {
         name: userData.name,
         parentName: userData.parentName,
@@ -60,20 +60,24 @@ const Index = () => {
         measurementDate: newMeasurement.measurementDate,
       };
 
-      // Generate QR code image (as base64 data URL)
       let qrDataUrl = "";
       try {
         qrDataUrl = await generateQRCode(qrPayload);
+        setQrDataUrl(qrDataUrl);
       } catch (err) {
+        setQrDataUrl(null);
         console.error("Failed to generate QR code:", err);
+        toast({
+          title: "Error",
+          description: "Failed to generate QR code.",
+          variant: "destructive"
+        });
       }
 
-      // Save to localStorage (for measurement history)
       saveUserMeasurement(newMeasurement);
       setMeasurements([...measurements, newMeasurement]);
       setAppState(AppState.SUCCESS);
 
-      // Save to Supabase (user_qr_codes)
       try {
         const { error } = await supabase.from("user_qr_codes").insert([
           {
@@ -89,15 +93,32 @@ const Index = () => {
         ]);
         if (error) {
           console.error("Supabase insert error:", error);
+          toast({
+            title: "Storage Error",
+            description: "Failed to save measurement to Supabase.",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Success!",
+            description: "Measurement saved to Supabase.",
+            variant: "default"
+          });
         }
       } catch (err) {
         console.error("Supabase insert exception:", err);
+        toast({
+          title: "Storage Exception",
+          description: "Error when saving measurement to Supabase.",
+          variant: "destructive"
+        });
       }
     }
   };
 
   const handleStartNewMeasurement = () => {
     setUserData(null);
+    setQrDataUrl(null);
     setAppState(AppState.USER_DETAILS);
   };
 
@@ -124,7 +145,8 @@ const Index = () => {
       case AppState.SUCCESS:
         return (
           <MeasurementSuccess 
-            onClose={() => setAppState(AppState.HISTORY)} 
+            onClose={() => setAppState(AppState.HISTORY)}
+            qrDataUrl={qrDataUrl}
           />
         );
       case AppState.HISTORY:
