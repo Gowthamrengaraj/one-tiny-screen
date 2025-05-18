@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import UserDetailsForm, { UserFormData } from "@/components/UserDetailsForm";
 import MeasurementDisplay from "@/components/MeasurementDisplay";
@@ -6,6 +5,8 @@ import MeasurementHistory from "@/components/MeasurementHistory";
 import MeasurementSuccess from "@/components/MeasurementSuccess";
 import { saveUserMeasurement, getUserMeasurements, UserMeasurement } from "@/services/storageService";
 import { v4 as uuidv4 } from "uuid";
+import { supabase } from "@/integrations/supabase/client";
+import { generateQRCode } from "@/utils/qrCodeUtils";
 
 enum AppState {
   USER_DETAILS,
@@ -35,7 +36,7 @@ const Index = () => {
     setAppState(AppState.MEASUREMENT);
   };
 
-  const handleMeasurementSubmit = (weight: number, height: number) => {
+  const handleMeasurementSubmit = async (weight: number, height: number) => {
     if (userData && userData.dob) {
       const newMeasurement: UserMeasurement = {
         id: uuidv4(),
@@ -47,12 +48,51 @@ const Index = () => {
         height: height,
         measurementDate: new Date().toISOString()
       };
-      
+
+      // Create QR code payload
+      const qrPayload = {
+        name: userData.name,
+        parentName: userData.parentName,
+        age: userData.age,
+        dob: userData.dob.toISOString(),
+        weight,
+        height,
+        measurementDate: newMeasurement.measurementDate,
+      };
+
+      // Generate QR code image (as base64 data URL)
+      let qrDataUrl = "";
+      try {
+        qrDataUrl = await generateQRCode(qrPayload);
+      } catch (err) {
+        console.error("Failed to generate QR code:", err);
+      }
+
+      // Save to localStorage (for measurement history)
       saveUserMeasurement(newMeasurement);
-      
-      // Update local state
       setMeasurements([...measurements, newMeasurement]);
       setAppState(AppState.SUCCESS);
+
+      // Save to Supabase (user_qr_codes)
+      try {
+        const { error } = await supabase.from("user_qr_codes").insert([
+          {
+            name: userData.name,
+            parent_name: userData.parentName,
+            dob: userData.dob.toISOString(),
+            age: userData.age,
+            height,
+            weight,
+            qr_data: JSON.stringify(qrPayload),
+            qr_image_url: qrDataUrl,
+          },
+        ]);
+        if (error) {
+          console.error("Supabase insert error:", error);
+        }
+      } catch (err) {
+        console.error("Supabase insert exception:", err);
+      }
     }
   };
 
