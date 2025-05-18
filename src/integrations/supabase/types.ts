@@ -9,7 +9,48 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      user_qr_codes: {
+        Row: {
+          age: number | null
+          created_at: string | null
+          dob: string | null
+          height: number
+          id: string
+          name: string
+          parent_name: string | null
+          qr_data: string
+          qr_image_url: string | null
+          user_id: string | null
+          weight: number
+        }
+        Insert: {
+          age?: number | null
+          created_at?: string | null
+          dob?: string | null
+          height: number
+          id?: string
+          name: string
+          parent_name?: string | null
+          qr_data: string
+          qr_image_url?: string | null
+          user_id?: string | null
+          weight: number
+        }
+        Update: {
+          age?: number | null
+          created_at?: string | null
+          dob?: string | null
+          height?: number
+          id?: string
+          name?: string
+          parent_name?: string | null
+          qr_data?: string
+          qr_image_url?: string | null
+          user_id?: string | null
+          weight?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
